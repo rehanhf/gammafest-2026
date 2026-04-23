@@ -1,0 +1,22 @@
+# Data and Submissions
+data/raw/*
+data/processed/*
+data/external/*
+submissions/*
+!data/**/.gitkeep
+!submissions/.gitkeep
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+env/
+.venv/
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
