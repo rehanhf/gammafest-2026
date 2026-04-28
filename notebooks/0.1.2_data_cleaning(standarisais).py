@@ -1,9 +1,56 @@
 import pandas as pd
 import numpy as np
+import re
+
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 #1. muat raw data
 train = pd.read_csv('./data/raw/train.csv')
 test = pd.read_csv('./data/raw/test.csv')
+
+def standarisasi_tanggal(df, kolom_tanggal='date'):
+    """
+    menstandarisasi format tanggal campuran ke format ISO YYYY-MM-DD (string).
+    menangani dua format:
+      - YYYY-MM-DD  → sudah benar, tidak diubah       (contoh: 1899-03-18)
+      - DD/MM/YYYY  → dikonversi ke YYYY-MM-DD         (contoh: 03/02/1900)
+    semua disimpan sebagai string karena pandas tidak support tanggal < 1900.
+    """
+    if kolom_tanggal not in df.columns:
+        print(f"[WARNING] kolom '{kolom_tanggal}' tidak ditemukan, dilewati.")
+        return df
+
+    def konversi_satu_tanggal(val):
+        if pd.isna(val) or str(val).strip() == '':
+            return np.nan
+        
+        val = str(val).strip()
+        
+        # format YYYY-MM-DD (sudah benar)
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', val):
+            return val
+        
+        # format DD/MM/YYYY → YYYY-MM-DD
+        if re.match(r'^\d{2}/\d{2}/\d{4}$', val):
+            dd, mm, yyyy = val.split('/')
+            return f"{yyyy}-{mm}-{dd}"
+        
+        # format MM/DD/YYYY → YYYY-MM-DD (fallback jika ada)
+        if re.match(r'^\d{2}/\d{2}/\d{4}$', val):
+            mm, dd, yyyy = val.split('/')
+            return f"{yyyy}-{mm}-{dd}"
+
+        print(f"[WARNING] format tanggal tidak dikenali: '{val}'")
+        return val
+
+    sebelum = df[kolom_tanggal].isna().sum()
+    df[kolom_tanggal] = df[kolom_tanggal].apply(konversi_satu_tanggal)
+    sesudah = df[kolom_tanggal].isna().sum()
+
+    print(f"[standarisasi_tanggal] kolom='{kolom_tanggal}' | "
+          f"NaN sebelum={sebelum}, sesudah={sesudah}")
+    return df
 
 def standarisasi_nama_tim(df):
     """
@@ -34,7 +81,7 @@ def imputasi_missing_values(df):
     df.loc[df['is_home'] == 1, 'distance_travel_team'] = df.loc[df['is_home'] == 1, 'distance_travel_team'].fillna(0)
     df.loc[(df['is_home'] == 0) & (df['neutral'] == 0), 'distance_travel_opp'] = df.loc[(df['is_home'] == 0) & (df['neutral'] == 0), 'distance_travel_opp'].fillna(0)
     
-    kolom_numerik =[
+    kolom_numerik = [
         'altitude_venue', 'temperature_venue', 
         'distance_travel_team', 'distance_travel_opp',
         'gdp_per_capita_team', 'gdp_per_capita_opp',
@@ -50,15 +97,18 @@ def imputasi_missing_values(df):
     return df
 
 #5. eksekusi pembersihan
+train = standarisasi_tanggal(train, kolom_tanggal='date')   # ← ganti 'date' jika nama kolom berbeda
+test  = standarisasi_tanggal(test,  kolom_tanggal='date')
+
 train = standarisasi_nama_tim(train)
-test = standarisasi_nama_tim(test)
+test  = standarisasi_nama_tim(test)
 
 train = imputasi_missing_values(train)
-test = imputasi_missing_values(test)
+test  = imputasi_missing_values(test)
 
 #6. verifikasi sisa cold start teams setelah standardisasi
 tim_train = set(train['team'].unique()).union(set(train['opponent'].unique()))
-tim_test = set(test['team'].unique()).union(set(test['opponent'].unique()))
+tim_test  = set(test['team'].unique()).union(set(test['opponent'].unique()))
 genuine_new_teams = tim_test - tim_train
 
 print(f"jumlah genuine new teams di test set: {len(genuine_new_teams)}")

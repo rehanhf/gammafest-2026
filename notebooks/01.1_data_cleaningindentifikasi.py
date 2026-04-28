@@ -1,9 +1,11 @@
 import pandas as pd
-import numpy as np
 import re
 
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+
 #1. muat data
-train = pd.read_csv('./data/raw/train.csv')
+train = pd.read_csv('./data/raw/train.csv') 
 test = pd.read_csv('./data/raw/test.csv')
 
 def deteksi_anomali_string(df, nama_df):
@@ -29,7 +31,6 @@ def bandingkan_entitas(train_df, test_df):
     tim_test = set(test_df['team'].dropna().unique()).union(set(test_df['opponent'].dropna().unique()))
     
     #3. set difference kalkulasi
-    hanya_di_train = tim_train - tim_test
     hanya_di_test = tim_test - tim_train
     
     print("--- perbandingan entitas tim ---")
@@ -66,6 +67,6 @@ audit_missing_values(train, test)
 #6. cek duplikasi baris berdasarkan match_id
 dup_train = train.duplicated(subset=['match_id', 'team']).sum()
 dup_test = test.duplicated(subset=['match_id', 'team']).sum()
-print(f"--- duplikasi baris ---")
+print("--- duplikasi baris ---")
 print(f"duplikat di train: {dup_train}")
 print(f"duplikat di test: {dup_test}")
