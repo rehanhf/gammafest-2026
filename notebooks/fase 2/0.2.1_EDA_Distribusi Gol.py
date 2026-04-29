@@ -7,12 +7,16 @@ from scipy import stats
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
+#memuat data training yang telah dibersihkan sebelumnya
+#file ini berisi informasi tentang gol yang dicetak oleh tim dan lawan dalam setiap pertandingan
 train = pd.read_csv('./data/processed/train_cleaned.csv', dtype={'date': str})
 
 print(f"Shape: {train.shape}")
 print(train[['team_goals', 'opp_goals']].describe().round(3))
 
-
+#deskriptif statistik untuk team_goals dan opp_goals
+#bagian ini menghitung dan menampilkan statistik dasar seperti mean, median, std, skewness, dan kurtosis
+#statistik ini membantu kita memahami distribusi dan karakteristik data gol
 for col in ['team_goals', 'opp_goals']:
     s = train[col]
     print(f"\n{'─'*40}")
@@ -26,6 +30,9 @@ for col in ['team_goals', 'opp_goals']:
 
 
 def deteksi_outlier_iqr(series, label):
+    #fungsi untuk mendeteksi outliers menggunakan metode Interquartile Range (IQR)
+    #IQR adalah selisih antara quartile 3 (75%) dan quartile 1 (25%)
+    #nilai yang melebihi batas atas (Q3 + 1.5*IQR) dianggap outliers
     Q1 = series.quantile(0.25)
     Q3 = series.quantile(0.75)
     IQR = Q3 - Q1
@@ -43,18 +50,24 @@ def deteksi_outlier_iqr(series, label):
 batas_team = deteksi_outlier_iqr(train['team_goals'], 'team_goals')
 batas_opp  = deteksi_outlier_iqr(train['opp_goals'],  'opp_goals')
 
-
+#membuat visualisasi distribusi gol dengan multiple subplots
+#kami menggunakan GridSpec untuk mengatur layout 3 baris x 2 kolom
+#setiap subplot menampilkan aspek berbeda dari distribusi gol (histogram, KDE, boxplot, Q-Q plot)
 fig = plt.figure(figsize=(18, 14))
 fig.suptitle('Distribusi Gol — Fase 2 EDA', fontsize=16, fontweight='bold', y=0.98)
 gs = gridspec.GridSpec(3, 2, figure=fig, hspace=0.45, wspace=0.35)
 
+#mendefinisikan color scheme: biru untuk team_goals, orange untuk opp_goals
 warna = {'team_goals': '#2196F3', 'opp_goals': '#FF5722'}
 
 for i, col in enumerate(['team_goals', 'opp_goals']):
     label = 'Tim' if col == 'team_goals' else 'Lawan'
     c     = warna[col]
 
-    # -- histogram + KDE
+    #subplot histogram + KDE (kernel density estimation) untuk distribusi goals
+    #histogram menunjukkan frekuensi jumlah gol yang dicetak
+    #KDE memberikan estimasi smooth dari fungsi probability density
+    #garis merah menunjukkan mean, garis orange menunjukkan median
     ax1 = fig.add_subplot(gs[0, i])
     train[col].plot.hist(bins=range(0, int(train[col].max()) + 2),
                          ax=ax1, color=c, alpha=0.75, edgecolor='white')
@@ -68,7 +81,9 @@ for i, col in enumerate(['team_goals', 'opp_goals']):
     ax1.axvline(train[col].median(), color='orange', linestyle='--', linewidth=1.5, label=f'Median={train[col].median():.0f}')
     ax1.legend(fontsize=8)
 
-    # -- boxplot
+    #subplot boxplot untuk deteksi outliers secara visual
+    #boxplot menampilkan quartiles (Q1, median, Q3) dan whiskers (1.5*IQR)
+    #titik merah yang tersebar adalah outliers atau nilai yang tidak biasa
     ax2 = fig.add_subplot(gs[1, i])
     ax2.boxplot(train[col].dropna(), vert=False, patch_artist=True,
                 boxprops=dict(facecolor=c, alpha=0.6),
@@ -77,7 +92,9 @@ for i, col in enumerate(['team_goals', 'opp_goals']):
     ax2.set_title(f'Boxplot — Gol {label}', fontweight='bold')
     ax2.set_xlabel('Jumlah Gol')
 
-# -- distribusi gabungan (total gol per pertandingan)
+#subplot histogram distribusi gabungan (total gol per pertandingan)
+#total gol adalah penjumlahan dari gol tim dan gol lawan
+#ini memberikan gambaran tentang bagaimana pertandingan berlangsung (tinggi/rendah scoring)
 train['total_goals'] = train['team_goals'] + train['opp_goals']
 ax3 = fig.add_subplot(gs[2, 0])
 train['total_goals'].plot.hist(bins=range(0, int(train['total_goals'].max()) + 2),
@@ -89,7 +106,10 @@ ax3.axvline(train['total_goals'].mean(), color='red', linestyle='--', linewidth=
             label=f"Mean={train['total_goals'].mean():.2f}")
 ax3.legend(fontsize=8)
 
-# -- Q-Q plot
+#subplot Q-Q (Quantile-Quantile) plot untuk mengecek normalitas distribusi team_goals
+#Q-Q plot membandingkan quantiles dari data kita dengan quantiles dari distribusi normal
+#jika titik-titik mengikuti garis merah, data mendekati distribusi normal
+#jika menyimpang, data memiliki ekor yang lebih panjang (skewed) atau heavy-tailed
 ax4 = fig.add_subplot(gs[2, 1])
 stats.probplot(train['team_goals'], dist='norm', plot=ax4)
 ax4.set_title('Q-Q Plot — Gol Tim (vs Normal)', fontweight='bold')
@@ -100,7 +120,11 @@ plt.savefig('./reports/figures/02a_distribusi_gol.png', dpi=150, bbox_inches='ti
 plt.show()
 print("\n[SAVED] ./reports/figures/02a_distribusi_gol.png")
 
-# ── 5. Ringkasan temuan ───────────────────────────────────────
+#ringkasan temuan dari analisis distribusi gol
+#bagian ini merangkum insight penting tentang karakteristik distribusi gol
+#skewness menunjukkan apakah data miring ke kanan atau kiri
+#outlier memberitahu kami ada nilai-nilai ekstrem yang perlu dipertimbangkan
+#rekomendasi feature engineering akan membantu model machine learning bekerja lebih baik
 print("\n" + "═"*50)
 print("RINGKASAN TEMUAN — DISTRIBUSI GOL")
 print("═"*50)
