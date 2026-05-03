@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from scipy import stats
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
+
 
 #memuat data training yang telah dibersihkan sebelumnya
 #file ini berisi informasi tentang gol yang dicetak oleh tim dan lawan dalam setiap pertandingan

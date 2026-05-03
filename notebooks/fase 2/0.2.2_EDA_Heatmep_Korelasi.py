@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
 
 os.makedirs('./reports/figures', exist_ok=True)
 
