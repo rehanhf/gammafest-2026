@@ -4,14 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# ── 0. Buat folder output jika belum ada ─────────────────────
 os.makedirs('./reports/figures', exist_ok=True)
 
-
+# ── 1. Load data ──────────────────────────────────────────────
 train = pd.read_csv('./data/processed/train_cleaned.csv', dtype={'date': str})
 
-#mendefinisikan kolom-kolom numerik untuk analisis korelasi
-#kolom-kolom ini mencakup fitur gol, venue, travel distance, ekonomi, dan populasi
-#kami akan menganalisis seberapa kuat hubungan linear antara fitur-fitur ini
+# ── 2. Pilih kolom numerik yang relevan ───────────────────────
 kolom_numerik = [
     'team_goals', 'opp_goals',
     'altitude_venue', 'temperature_venue',
@@ -20,36 +19,28 @@ kolom_numerik = [
     'population_team', 'population_opp'
 ]
 
-#filter hanya kolom yang benar-benar ada di dataframe
-#step ini penting untuk menghindari error jika ada kolom yang hilang atau dihapus
+# filter hanya kolom yang benar-benar ada di dataframe
 kolom_numerik = [c for c in kolom_numerik if c in train.columns]
 print(f"Kolom yang digunakan ({len(kolom_numerik)}): {kolom_numerik}")
 
 df_num = train[kolom_numerik].copy()
 
-#menghitung matrix korelasi menggunakan method Pearson dan Spearman
-#Pearson mengukur korelasi linear (hubungan garis lurus)
-#Spearman mengukur korelasi rank-based (hubungan monotonic)
-#kedua metode ini membantu kami memahami hubungan antar fitur
+# ── 3. Matriks korelasi ───────────────────────────────────────
 corr_pearson  = df_num.corr(method='pearson')
 corr_spearman = df_num.corr(method='spearman')
 
-
+# ── 4. Korelasi tertinggi vs target ───────────────────────────
 print("\n── Korelasi Pearson vs team_goals ──")
 print(corr_pearson['team_goals'].drop('team_goals').sort_values(key=abs, ascending=False).round(4))
 
 print("\n── Korelasi Spearman vs team_goals ──")
 print(corr_spearman['team_goals'].drop('team_goals').sort_values(key=abs, ascending=False).round(4))
 
-#visualisasi heatmap korelasi dengan Pearson dan Spearman
-#heatmap menunjukkan korelasi antara semua pasangan fitur dengan color intensity
-#warna lebih merah berarti korelasi positif yang kuat, warna biru berarti negatif
-#angka di setiap cell menunjukkan nilai korelasi yang tepat (-1 hingga 1)
+# ── 5. Visualisasi ────────────────────────────────────────────
 fig, axes = plt.subplots(1, 2, figsize=(22, 9))
 fig.suptitle('Heatmap Korelasi Fitur Numerik — Fase 2 EDA', fontsize=15, fontweight='bold')
 
-#sembunyikan segitiga atas karena merupakan duplikat (mirror) dari bawah
-mask = np.triu(np.ones_like(corr_pearson, dtype=bool))  #sembunyikan segitiga atas (duplikat)
+mask = np.triu(np.ones_like(corr_pearson, dtype=bool))  # sembunyikan segitiga atas (duplikat)
 
 for ax, corr, metode in zip(axes, [corr_pearson, corr_spearman], ['Pearson', 'Spearman']):
     sns.heatmap(
@@ -75,10 +66,7 @@ plt.savefig('./reports/figures/02b_heatmap_korelasi.png', dpi=150, bbox_inches='
 plt.show()
 print("\n[SAVED] ./reports/figures/02b_heatmap_korelasi.png")
 
-#plot bar untuk menampilkan korelasi fitur vs team_goals (target variable)
-#ini adalah fitur korelasi yang paling penting untuk prediksi model
-#warna biru menunjukkan korelasi positif (lebih banyak feature → lebih banyak gol)
-#warna orange menunjukkan korelasi negatif (lebih banyak feature → lebih sedikit gol)
+# ── 6. Plot bar: korelasi fitur vs team_goals ─────────────────
 fig2, ax = plt.subplots(figsize=(10, 5))
 
 korelasi_target = corr_spearman['team_goals'].drop('team_goals').sort_values()
@@ -101,9 +89,7 @@ plt.savefig('./reports/figures/02b_korelasi_bar.png', dpi=150, bbox_inches='tigh
 plt.show()
 print("[SAVED] ./reports/figures/02b_korelasi_bar.png")
 
-#ringkasan temuan dari analisis korelasi
-#bagian ini mengidentifikasi fitur-fitur paling penting yang berkorelasi dengan target
-#serta mendeteksi multikolinearitas yang dapat merusak model
+# ── 7. Ringkasan temuan ───────────────────────────────────────
 print("\n" + "═"*55)
 print("RINGKASAN TEMUAN — HEATMAP KORELASI")
 print("═"*55)
@@ -113,10 +99,6 @@ for fitur, val in top3.items():
     arah = "positif" if corr_spearman['team_goals'][fitur] > 0 else "negatif"
     print(f"→ {fitur:<30} r={val:.3f} ({arah})")
 
-#deteksi multikolinearity antar fitur
-#multikolinearity terjadi ketika dua fitur sangat berkorelasi satu sama lain
-#ini dapat menyebabkan masalah dalam model karena redundansi informasi
-#threshold 0.85 menunjukkan korelasi sangat kuat yang perlu dipertimbangkan
 multikolinear = []
 cols = corr_pearson.columns.tolist()
 for i in range(len(cols)):
