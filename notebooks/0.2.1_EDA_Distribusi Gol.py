@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from scipy import stats
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 train = pd.read_csv('./data/processed/train_cleaned.csv', dtype={'date': str})
 
