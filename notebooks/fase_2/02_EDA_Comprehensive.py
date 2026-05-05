@@ -91,6 +91,15 @@ def deteksi_outlier_iqr(series, label):
 batas_team, pct_team = deteksi_outlier_iqr(train['team_goals'], 'team_goals')
 batas_opp, pct_opp   = deteksi_outlier_iqr(train['opp_goals'],  'opp_goals')
 
+# ── 1.2b Hard clipping limits (99.9th percentile for Phase 5) ───
+p999_team = int(np.ceil(train['team_goals'].quantile(0.999)))
+p999_opp = int(np.ceil(train['opp_goals'].quantile(0.999)))
+
+print(f"\n[HARD CLIPPING LIMITS] — Use in Phase 5 Feature Engineering")
+print(f"  team_goals 99.9th percentile: {p999_team} goals")
+print(f"  opp_goals 99.9th percentile : {p999_opp} goals")
+print(f"  Rationale: Clip extreme outliers without removing Poisson tail events")
+
 # ── 1.3 Visualisasi Distribusi ────────────────────────────────
 fig = plt.figure(figsize=(20, 12))
 fig.suptitle('PART 1: Distribusi Gol — Fase 2 EDA', fontsize=16, fontweight='bold', y=0.995)
@@ -524,43 +533,39 @@ print(f"  → Variance across months: σ={per_bulan['std_total_goals'].mean():.3
 print(f"\nVOLUME TREND:")
 volume_threshold = per_dekade['jumlah_pertandingan'].median()
 vol_recovery_decade = int(per_dekade.loc[per_dekade['jumlah_pertandingan'] > volume_threshold, 'decade'].min())
-print(f"  → Data volume increases from {vol_recovery_decade}an onwards")
+print(f"  → Data volume increases from {vol_recovery_decade}0 onwards")
 print(f"  → Median matches/decade: {volume_threshold:.0f}")
+print(f"\n[CRITICAL FOR PHASE 3]: Filter train.csv to exclude pre-{vol_recovery_decade}0 matches")
+print(f"  Reason: Severe structural drift detected in early decades")
 
 # =============================================================
 # FINAL RECOMMENDATIONS
 # =============================================================
 print("\n" + "="*70)
-print("FINAL RECOMMENDATIONS — FEATURE ENGINEERING PHASE")
+print("FINAL RECOMMENDATIONS — MINIMAL & LOSS-AWARE")
 print("="*70)
 
-print("""
-1. DISTRIBUTION HANDLING:
-   ✓ Apply log1p transformation to normalize goal distributions
-   ✓ Consider Box-Cox transformation for optimal normalization
-   ✓ Use robust scaling instead of standard scaling due to outliers
+print(f"""
+MINIMAL FIXES FOR PHASE 3-5:
+═══════════════════════════════════════════════════════════════════════════════
 
-2. FEATURE SELECTION:
-   ✓ Include only correlations with p-value < 0.05
-   ✓ Check VIF for multicollinearity (threshold: > 5-10)
-   ✓ Drop redundant features showing high correlation (r > 0.85)
+1. ✗ NULLIFIED: Never transform, log-scale, or standardize target variables.
+   REASON: Goal counts must remain raw integers to train Poisson/Negative Binomial.
+   
+2. HARD CLIPPING (99.9th percentile):
+   team_goals: CLIP at {p999_team} goals  
+   opp_goals:  CLIP at {p999_opp} goals
+   → Use these exact integers in Phase 5 feature engineering
 
-3. TEMPORAL FEATURES:
-   ✓ Add 'decade' and 'month' as categorical features
-   ✓ Consider decade cutoff ~{vol_recovery_decade}an for quality filtering
-   ✓ Weight early data by sample size to avoid bias
-   ✓ Explore seasonal decomposition (STL) for deep pattern analysis
-
-4. DATA QUALITY:
-   ✓ Investigate sparse years: {sparse_years['year'].values.astype(int).tolist() if len(sparse_years) > 0 else 'None'}
-   ✓ Outliers detected: {pct_team:.1f}% in team_goals, {pct_opp:.1f}% in opp_goals
-   ✓ Missing values: All features complete in preprocessed data
-
-5. MODELING STRATEGY:
-   ✓ Trend: {trend_result.lower()}
-   ✓ Use decade-stratified cross-validation
-   ✓ Account for temporal/seasonal patterns
-   ✓ Consider ensemble methods for robust predictions
+3. VOL_RECOVERY_DECADE for Phase 3 (Elo Reconstruction):
+   vol_recovery_decade = {vol_recovery_decade}
+   → FILTER train.csv: Exclude all matches before {vol_recovery_decade}0
+   → REASON: Pre-{vol_recovery_decade}0 shows structural drift + low volume
+   
+4. MODEL REQUIREMENTS (AW-MAE Loss):
+   ✓ Poisson/Negative Binomial regression (count-aware link)
+   ✓ Preserve original integer count space
+   ✓ Validate with exact-match rate + L1 distance distribution
 """)
 
 print("\n" + "="*70)
