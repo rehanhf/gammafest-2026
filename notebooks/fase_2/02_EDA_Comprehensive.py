@@ -533,9 +533,9 @@ print(f"  → Variance across months: σ={per_bulan['std_total_goals'].mean():.3
 print(f"\nVOLUME TREND:")
 volume_threshold = per_dekade['jumlah_pertandingan'].median()
 vol_recovery_decade = int(per_dekade.loc[per_dekade['jumlah_pertandingan'] > volume_threshold, 'decade'].min())
-print(f"  → Data volume increases from {vol_recovery_decade}0 onwards")
+print(f"  → Data volume increases from {vol_recovery_decade} onwards")
 print(f"  → Median matches/decade: {volume_threshold:.0f}")
-print(f"\n[CRITICAL FOR PHASE 3]: Filter train.csv to exclude pre-{vol_recovery_decade}0 matches")
+print(f"\n[CRITICAL FOR PHASE 3]: Filter train.csv to exclude pre-{vol_recovery_decade} matches")
 print(f"  Reason: Severe structural drift detected in early decades")
 
 # =============================================================
@@ -559,8 +559,8 @@ MINIMAL FIXES FOR PHASE 3-5:
 
 3. VOL_RECOVERY_DECADE for Phase 3 (Elo Reconstruction):
    vol_recovery_decade = {vol_recovery_decade}
-   → FILTER train.csv: Exclude all matches before {vol_recovery_decade}0
-   → REASON: Pre-{vol_recovery_decade}0 shows structural drift + low volume
+   → FILTER train.csv: Exclude all matches before {vol_recovery_decade}
+   → REASON: Pre-{vol_recovery_decade} shows structural drift + low volume
    
 4. MODEL REQUIREMENTS (AW-MAE Loss):
    ✓ Poisson/Negative Binomial regression (count-aware link)
