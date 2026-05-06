@@ -568,6 +568,264 @@ MINIMAL FIXES FOR PHASE 3-5:
    ✓ Validate with exact-match rate + L1 distance distribution
 """)
 
+
+# =============================================================
+# PART 4: OUTCOME DISTRIBUTION ANALYSIS (02d)
+# Prerequisites untuk Post-Processing Threshold
+# =============================================================
+print("\n" + "="*70)
+print("PART 4: OUTCOME DISTRIBUTION — W/D/L & Goal Difference Analysis")
+print("="*70)
+
+# ── 4.0 Derive outcome & goal difference ─────────────────────
+train['goal_diff']  = train['team_goals'] - train['opp_goals']
+train['outcome']    = np.where(train['team_goals'] > train['opp_goals'], 'Win',
+                     np.where(train['team_goals'] == train['opp_goals'], 'Draw', 'Loss'))
+train['outcome_num'] = np.where(train['team_goals'] > train['opp_goals'], 2,
+                      np.where(train['team_goals'] == train['opp_goals'], 1, 0))
+
+print(f"\nOutcome distribution (global):")
+outcome_global = train['outcome'].value_counts()
+outcome_pct    = train['outcome'].value_counts(normalize=True) * 100
+for o in ['Win', 'Draw', 'Loss']:
+    print(f"  {o:<6}: {outcome_global[o]:>6} ({outcome_pct[o]:.1f}%)")
+
+# ── 4.1 W/D/L per turnamen ───────────────────────────────────
+print("\n── W/D/L Distribution per Tournament ──")
+
+# Ambil top 15 turnamen by volume
+top_tournaments = train['tournament'].value_counts().head(15).index.tolist()
+
+# Tambahkan World Cup secara eksplisit jika belum masuk
+for wc_name in ['FIFA World Cup', 'World Cup']:
+    if wc_name in train['tournament'].values and wc_name not in top_tournaments:
+        top_tournaments.append(wc_name)
+
+outcome_per_tournament = (
+    train[train['tournament'].isin(top_tournaments)]
+    .groupby(['tournament', 'outcome'])
+    .size()
+    .unstack(fill_value=0)
+    .reindex(columns=['Win', 'Draw', 'Loss'], fill_value=0)
+)
+
+# Tambah total dan persentase
+outcome_per_tournament['Total']   = outcome_per_tournament.sum(axis=1)
+outcome_per_tournament['Win%']    = (outcome_per_tournament['Win']  / outcome_per_tournament['Total'] * 100).round(1)
+outcome_per_tournament['Draw%']   = (outcome_per_tournament['Draw'] / outcome_per_tournament['Total'] * 100).round(1)
+outcome_per_tournament['Loss%']   = (outcome_per_tournament['Loss'] / outcome_per_tournament['Total'] * 100).round(1)
+
+outcome_per_tournament = outcome_per_tournament.sort_values('Total', ascending=False)
+print(outcome_per_tournament[['Win%', 'Draw%', 'Loss%', 'Total']].to_string())
+
+# ── 4.2 Home win rate per turnamen ───────────────────────────
+print("\n── Home Win Rate per Tournament ──")
+
+home_matches = train[(train['is_home'] == 1) & (train['neutral'] == 0)]
+home_wr = (
+    home_matches[home_matches['tournament'].isin(top_tournaments)]
+    .groupby('tournament')
+    .agg(
+        total_home   = ('outcome', 'count'),
+        home_wins    = ('outcome', lambda x: (x == 'Win').sum()),
+        home_draws   = ('outcome', lambda x: (x == 'Draw').sum()),
+        home_losses  = ('outcome', lambda x: (x == 'Loss').sum()),
+    )
+)
+home_wr['home_win_rate']  = (home_wr['home_wins']   / home_wr['total_home'] * 100).round(1)
+home_wr['home_draw_rate'] = (home_wr['home_draws']  / home_wr['total_home'] * 100).round(1)
+home_wr = home_wr.sort_values('home_win_rate', ascending=False)
+print(home_wr[['total_home', 'home_win_rate', 'home_draw_rate']].to_string())
+
+# ── 4.3 Distribusi selisih gol ───────────────────────────────
+print("\n── Goal Difference Distribution ──")
+gd_dist = train['goal_diff'].value_counts().sort_index()
+gd_pct  = train['goal_diff'].value_counts(normalize=True).sort_index() * 100
+
+print(f"{'GD':>5} | {'Count':>7} | {'Pct':>6}")
+print("─" * 25)
+for gd, count in gd_dist.items():
+    bar = '█' * int(gd_pct[gd])
+    print(f"{gd:>5} | {count:>7} | {gd_pct[gd]:>5.1f}% {bar}")
+
+# Kalkulasi threshold penting
+pct_gd_zero  = gd_pct.get(0, 0)
+pct_gd_one   = (gd_pct.get(1, 0) + gd_pct.get(-1, 0))
+pct_gd_small = sum(gd_pct.get(g, 0) for g in [-1, 0, 1])
+
+print(f"\n[THRESHOLD INSIGHTS — untuk Post-Processing]")
+print(f"  Draw (GD=0)          : {pct_gd_zero:.1f}% pertandingan")
+print(f"  Selisih 1 gol        : {pct_gd_one:.1f}% pertandingan")
+print(f"  Selisih ≤ 1 gol      : {pct_gd_small:.1f}% pertandingan")
+print(f"  → Mayoritas match berakhir ketat — model harus konservatif")
+
+# ── 4.4 Analisis khusus World Cup ────────────────────────────
+print("\n── World Cup Specific Analysis ──")
+
+wc_mask = train['tournament'].str.contains('World Cup', case=False, na=False)
+train_wc = train[wc_mask]
+
+if len(train_wc) > 0:
+    print(f"Total pertandingan World Cup : {len(train_wc)}")
+    print(f"\nDistribusi Outcome WC:")
+    wc_outcome = train_wc['outcome'].value_counts(normalize=True) * 100
+    for o in ['Win', 'Draw', 'Loss']:
+        if o in wc_outcome:
+            print(f"  {o:<6}: {wc_outcome[o]:.1f}%")
+
+    print(f"\nStatistik Gol World Cup:")
+    print(f"  Rata-rata team_goals : {train_wc['team_goals'].mean():.3f}")
+    print(f"  Rata-rata opp_goals  : {train_wc['opp_goals'].mean():.3f}")
+    print(f"  Rata-rata total gol  : {train_wc['total_goals'].mean():.3f}")
+    print(f"  Median total gol     : {train_wc['total_goals'].median():.1f}")
+    print(f"  % Draw di WC         : {(train_wc['outcome'] == 'Draw').mean()*100:.1f}%")
+    print(f"  % Draw global        : {(train['outcome'] == 'Draw').mean()*100:.1f}%")
+
+    wc_gd_zero = (train_wc['goal_diff'] == 0).mean() * 100
+    wc_gd_one  = (train_wc['goal_diff'].abs() == 1).mean() * 100
+    print(f"  % Selisih 0 gol      : {wc_gd_zero:.1f}%")
+    print(f"  % Selisih 1 gol      : {wc_gd_one:.1f}%")
+else:
+    print("  ⚠️ Tidak ada data World Cup di train set — cek nama kolom tournament")
+
+# ── 4.5 ELO vs Outcome validation ────────────────────────────
+print("\n── ELO vs Outcome Validation ──")
+
+if 'elo_team' in train.columns and 'elo_opponent' in train.columns:
+    train['elo_diff_match'] = train['elo_team'] - train['elo_opponent']
+
+    # Binning ELO diff
+    bins   = [-np.inf, -200, -100, -50, 0, 50, 100, 200, np.inf]
+    labels = ['<-200', '-200:-100', '-100:-50', '-50:0',
+              '0:50',  '50:100',   '100:200',  '>200']
+    train['elo_bin'] = pd.cut(train['elo_diff_match'], bins=bins, labels=labels)
+
+    elo_outcome = train.groupby('elo_bin', observed=True)['outcome_num'].agg(
+        win_rate  = lambda x: (x == 2).mean() * 100,
+        draw_rate = lambda x: (x == 1).mean() * 100,
+        loss_rate = lambda x: (x == 0).mean() * 100,
+        count     = 'count'
+    ).round(1)
+
+    print(f"\n{'ELO Diff':<15} | {'Win%':>6} | {'Draw%':>6} | {'Loss%':>6} | {'N':>6}")
+    print("─" * 50)
+    for idx, row in elo_outcome.iterrows():
+        print(f"{str(idx):<15} | {row['win_rate']:>6.1f} | {row['draw_rate']:>6.1f} | {row['loss_rate']:>6.1f} | {int(row['count']):>6}")
+
+    print(f"\n[ELO VALIDATION]")
+    high_elo_winrate = elo_outcome.loc['>200', 'win_rate'] if '>200' in elo_outcome.index else 'N/A'
+    low_elo_winrate  = elo_outcome.loc['<-200', 'win_rate'] if '<-200' in elo_outcome.index else 'N/A'
+    print(f"  ELO diff > 200  → Win rate: {high_elo_winrate}%")
+    print(f"  ELO diff < -200 → Win rate: {low_elo_winrate}%")
+    print(f"  → Semakin besar ELO diff, semakin prediktif hasilnya")
+    print(f"  → ELO diff kecil (-50 to 50): zona ambiguous → draw lebih likely")
+
+# ── 4.6 Visualisasi Part 4 ───────────────────────────────────
+fig, axes = plt.subplots(2, 2, figsize=(20, 14))
+fig.suptitle('PART 4: Outcome Distribution Analysis — Fase 2 EDA',
+             fontsize=15, fontweight='bold', y=0.99)
+
+# -- 4.6a W/D/L per tournament (stacked bar)
+ax = axes[0, 0]
+plot_data = outcome_per_tournament[['Win%', 'Draw%', 'Loss%']].head(12)
+plot_data.plot(kind='barh', ax=ax, stacked=True,
+               color=['#4CAF50', '#FF9800', '#F44336'],
+               edgecolor='white', alpha=0.85)
+ax.set_title('W/D/L % per Tournament (Top 12)', fontweight='bold')
+ax.set_xlabel('Persentase (%)')
+ax.legend(loc='lower right', fontsize=8)
+ax.axvline(50, color='black', linewidth=0.8, linestyle='--', alpha=0.5)
+
+# -- 4.6b Goal difference distribution
+ax = axes[0, 1]
+gd_range  = range(int(train['goal_diff'].min()), int(train['goal_diff'].max()) + 1)
+gd_counts = [gd_dist.get(g, 0) for g in gd_range]
+colors_gd = ['#F44336' if g < 0 else '#FF9800' if g == 0 else '#4CAF50' for g in gd_range]
+ax.bar(list(gd_range), gd_counts, color=colors_gd, edgecolor='white', alpha=0.85)
+ax.set_title('Distribusi Selisih Gol (Goal Difference)', fontweight='bold')
+ax.set_xlabel('Selisih Gol (team - opp)')
+ax.set_ylabel('Frekuensi')
+ax.axvline(0, color='black', linewidth=1.5, linestyle='--')
+ax.text(0.5, 0.95, f"Draw: {pct_gd_zero:.1f}%",
+        transform=ax.transAxes, ha='center', fontsize=10,
+        color='#FF9800', fontweight='bold')
+
+# -- 4.6c Home win rate per tournament
+ax = axes[1, 0]
+home_plot = home_wr.head(12)[['home_win_rate', 'home_draw_rate']].copy()
+home_plot['home_loss_rate'] = 100 - home_plot['home_win_rate'] - home_plot['home_draw_rate']
+home_plot.plot(kind='barh', ax=ax, stacked=True,
+               color=['#4CAF50', '#FF9800', '#F44336'],
+               edgecolor='white', alpha=0.85)
+ax.set_title('Home Win/Draw/Loss Rate per Tournament', fontweight='bold')
+ax.set_xlabel('Persentase (%)')
+ax.axvline(50, color='black', linewidth=0.8, linestyle='--', alpha=0.5)
+ax.legend(['Home Win%', 'Home Draw%', 'Home Loss%'], fontsize=8, loc='lower right')
+
+# -- 4.6d ELO diff vs Win rate
+ax = axes[1, 1]
+if 'elo_diff_match' in train.columns:
+    ax.bar(range(len(elo_outcome)), elo_outcome['win_rate'].values,
+           color='#2196F3', alpha=0.8, edgecolor='white', label='Win%')
+    ax.bar(range(len(elo_outcome)), elo_outcome['draw_rate'].values,
+           bottom=elo_outcome['win_rate'].values,
+           color='#FF9800', alpha=0.8, edgecolor='white', label='Draw%')
+    ax.bar(range(len(elo_outcome)), elo_outcome['loss_rate'].values,
+           bottom=(elo_outcome['win_rate'] + elo_outcome['draw_rate']).values,
+           color='#F44336', alpha=0.8, edgecolor='white', label='Loss%')
+    ax.set_xticks(range(len(elo_outcome)))
+    ax.set_xticklabels(elo_outcome.index, rotation=30, ha='right', fontsize=8)
+    ax.set_title('Win/Draw/Loss Rate per ELO Difference Bin', fontweight='bold')
+    ax.set_xlabel('ELO Difference (team - opp)')
+    ax.set_ylabel('Persentase (%)')
+    ax.axhline(50, color='black', linewidth=0.8, linestyle='--', alpha=0.5)
+    ax.legend(fontsize=8)
+
+plt.tight_layout()
+plt.savefig('./reports/figures/02_part4_outcome_distribution.png', dpi=150, bbox_inches='tight')
+plt.close()
+print("\n[SAVED] ./reports/figures/02_part4_outcome_distribution.png")
+
+# ── 4.7 Threshold Summary — langsung dipakai di post-processing ──
+print("\n" + "═"*65)
+print("THRESHOLD SUMMARY — SIMPAN INI UNTUK POST-PROCESSING FASE 5")
+print("═"*65)
+
+draw_rate_global = (train['outcome'] == 'Draw').mean() * 100
+win_rate_global  = (train['outcome'] == 'Win').mean() * 100
+loss_rate_global = (train['outcome'] == 'Loss').mean() * 100
+
+draw_rate_wc = (train_wc['outcome'] == 'Draw').mean() * 100 if len(train_wc) > 0 else None
+pct_gd_le1   = sum(gd_pct.get(g, 0) for g in [-1, 0, 1])
+
+print(f"""
+GLOBAL BASELINE:
+  Win rate  : {win_rate_global:.1f}%
+  Draw rate : {draw_rate_global:.1f}%
+  Loss rate : {loss_rate_global:.1f}%
+
+WORLD CUP BASELINE:
+  Draw rate : {draw_rate_wc:.1f}% (vs global {draw_rate_global:.1f}%)
+
+GOAL DIFFERENCE:
+  % GD = 0  : {pct_gd_zero:.1f}%  → threshold draw correction
+  % |GD| ≤ 1: {pct_gd_small:.1f}%  → majority of matches tight
+
+POST-PROCESSING RULES (gunakan di Fase 5):
+  Rule 1: if prob_draw > {draw_rate_global/100:.2f} and |pred_team - pred_opp| > 1
+           → samakan skor (force draw)
+  Rule 2: if prob_win > 0.70 and pred_team <= pred_opp
+           → pred_team = pred_opp + 1
+  Rule 3: if prob_lose > 0.70 and pred_team >= pred_opp
+           → pred_opp = pred_team + 1
+  Rule 4: World Cup → gunakan threshold draw lebih tinggi ({(draw_rate_wc or draw_rate_global)/100:.2f})
+           karena draw rate WC lebih {'tinggi' if draw_rate_wc and draw_rate_wc > draw_rate_global else 'rendah'} dari global
+
+ELO AMBIGUOUS ZONE:
+  ELO diff antara -50 sampai 50 → draw lebih likely
+  → Pertimbangkan prediksi 1-1 atau 0-0 sebagai fallback
+""")
+
 print("\n" + "="*70)
 print("EDA ANALYSIS COMPLETE!")
 print("="*70)
