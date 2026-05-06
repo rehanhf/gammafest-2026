@@ -156,7 +156,32 @@ train_engineered = pd.concat([train_df.reset_index(drop=True), fitur_df], axis=1
 print(f"\nfeatures extracted: {fitur_df.shape[1]}")
 print(f"engineered training set: {train_engineered.shape}\n")
 
-#10. verifikasi
+#10. static feature encoding
+print("encoding static features...")
+
+#tournament weight
+tourney_conditions = [
+    train_engineered['tournament'].str.contains('World Cup', case=False, na=False) & ~train_engineered['tournament'].str.contains('Qualification', case=False, na=False),
+    train_engineered['tournament'].str.contains('AFC|Copa America|Euro|African', case=False, na=False) & ~train_engineered['tournament'].str.contains('Qualification', case=False, na=False),
+    train_engineered['tournament'].str.contains('Friendly', case=False, na=False)
+]
+tourney_values = [2.00, 1.80, 0.96]
+train_engineered['tournament_weight'] = np.select(tourney_conditions, tourney_values, default=1.20)
+
+#home advantage interaction
+train_engineered['home_elo_adv'] = train_engineered['is_home'] * train_engineered['elo_team_calc']
+
+#confederation encoding
+conf_map = {k: i for i, k in enumerate(train_engineered['confederation_team'].dropna().unique())}
+train_engineered['conf_team_encode'] = train_engineered['confederation_team'].map(conf_map).fillna(-1).astype(int)
+train_engineered['conf_opp_encode'] = train_engineered['confederation_opp'].map(conf_map).fillna(-1).astype(int)
+
+print("  tournament_weight added")
+print("  home_elo_adv added")
+print("  conf_team_encode added")
+print("  conf_opp_encode added\n")
+
+#11. verifikasi
 missing_per_col = train_engineered.iloc[:, -fitur_df.shape[1]:].isna().sum()
 if missing_per_col.sum() == 0:
     print("[PASS] 0 NaN di engineered features")
@@ -164,8 +189,8 @@ else:
     print(f"[WARNING] {missing_per_col.sum()} NaN ditemukan")
     print(missing_per_col[missing_per_col > 0])
 
-#11. export results
-print("\nexporting engineered training data...")
+#12. export results
+print("\nexporting final engineered training data...")
 train_engineered.to_csv('./data/processed/train_engineered.csv', index=False)
 print(f"[SAVED] ./data/processed/train_engineered.csv")
 
