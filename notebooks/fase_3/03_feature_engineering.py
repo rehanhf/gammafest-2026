@@ -4,10 +4,13 @@ import dill as pickle
 from collections import defaultdict
 from tqdm import tqdm
 
+#define value default buat self.elo
+def default_elo():
+    return 1500.0
 class TeamStateUpdater:
     def __init__(self):
         #inisialisasi memory stat historis
-        self.elo = defaultdict(lambda: 1500.0)
+        self.elo = defaultdict(default_elo)
         self.goals_scored = defaultdict(list)
         self.goals_conceded = defaultdict(list)
         self.outcomes = defaultdict(list)
