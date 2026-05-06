@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import pickle
+import dill as pickle
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -102,7 +102,7 @@ class TeamStateUpdater:
         return fitur
 
 #eksekusi utama pipeline
-train_df = pd.read_csv('../data/processed/train_cleaned.csv')
+train_df = pd.read_csv('data/processed/train_cleaned.csv')
 train_df['date'] = pd.to_datetime(train_df['date'])
 train_df['year'] = train_df['date'].dt.year
 
@@ -144,6 +144,6 @@ train_engineered['target_draw'] = (train_engineered['team_goals'] == train_engin
 train_engineered['target_lose'] = (train_engineered['team_goals'] < train_engineered['opp_goals']).astype(int)
 
 #penghapusan kolom redundan dan ekspor
-train_engineered.to_csv('../data/processed/train_engineered.csv', index=False)
-with open('../data/processed/state_tracker.pkl', 'wb') as f:
+train_engineered.to_csv('data/processed/train_engineered.csv', index=False)
+with open('data/processed/state_tracker.pkl', 'wb') as f:
     pickle.dump(tracker, f)
