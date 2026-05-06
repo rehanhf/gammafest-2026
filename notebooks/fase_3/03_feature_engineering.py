@@ -4,10 +4,13 @@ import pickle
 from collections import defaultdict
 from tqdm import tqdm
 
+#define value default buat self.elo
+def default_elo():
+    return 1500.0
 class TeamStateUpdater:
     def __init__(self):
         #inisialisasi memory stat historis
-        self.elo = defaultdict(lambda: 1500.0)
+        self.elo = defaultdict(default_elo)
         self.goals_scored = defaultdict(list)
         self.goals_conceded = defaultdict(list)
         self.outcomes = defaultdict(list)
@@ -102,7 +105,7 @@ class TeamStateUpdater:
         return fitur
 
 #eksekusi utama pipeline
-train_df = pd.read_csv('../data/processed/train_cleaned.csv')
+train_df = pd.read_csv('./data/processed/train_cleaned.csv')
 train_df['date'] = pd.to_datetime(train_df['date'])
 train_df['year'] = train_df['date'].dt.year
 
@@ -144,6 +147,6 @@ train_engineered['target_draw'] = (train_engineered['team_goals'] == train_engin
 train_engineered['target_lose'] = (train_engineered['team_goals'] < train_engineered['opp_goals']).astype(int)
 
 #penghapusan kolom redundan dan ekspor
-train_engineered.to_csv('../data/processed/train_engineered.csv', index=False)
-with open('../data/processed/state_tracker.pkl', 'wb') as f:
+train_engineered.to_csv('./data/processed/train_engineered.csv', index=False)
+with open('./data/processed/state_tracker.pkl', 'wb') as f:
     pickle.dump(tracker, f)
