@@ -4,9 +4,9 @@ import pickle
 from collections import defaultdict
 from tqdm import tqdm
 
-#define value default buat self.elo
 def default_elo():
     return 1500.0
+
 class TeamStateUpdater:
     def __init__(self):
         #inisialisasi memory stat historis
