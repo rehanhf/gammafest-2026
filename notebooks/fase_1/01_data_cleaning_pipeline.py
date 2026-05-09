@@ -18,7 +18,7 @@ def deteksi_anomali_string(df, nama_df):
     print(f"--- anomali karakter di {nama_df} ---")
     print(f"jumlah entitas non-ascii: {len(non_ascii)}")
     if len(non_ascii) > 0:
-        print("sampel:", non_ascii[:10])
+        print("sampel: [non-ASCII entries detected, will be standardized in pipeline]")
     print("\n")
 
 def bandingkan_entitas(train_df, test_df):
@@ -106,7 +106,8 @@ def imputasi_missing_values(df):
         'altitude_venue', 'temperature_venue', 
         'distance_travel_team', 'distance_travel_opp',
         'gdp_per_capita_team', 'gdp_per_capita_opp',
-        'population_team', 'population_opp'
+        'population_team', 'population_opp',
+        'rank_team', 'rank_opponent'
     ]
     
     #4. isi sisa NaN dengan median dari masing-masing kolom
@@ -114,6 +115,17 @@ def imputasi_missing_values(df):
         if col in df.columns:
             median_val = df[col].median()
             df[col] = df[col].fillna(median_val)
+    
+    #5. flag untuk rank availability (indicator: apakah rank tersedia di match ini?)
+    if 'rank_team' in df.columns:
+        df['rank_available_team'] = (~df['rank_team'].isna()).astype(int)
+    if 'rank_opponent' in df.columns:
+        df['rank_available_opp'] = (~df['rank_opponent'].isna()).astype(int)
+    
+    #6. encode gender (1=men, 0=women)
+    if 'gender' in df.columns:
+        df['gender_encoded'] = (df['gender'] == 'M').astype(int)
+        #mapping: M -> 1 (men), W -> 0 (women)
             
     return df
 
@@ -156,8 +168,12 @@ def verifikasi_fase_1(train_df, test_df):
         'population_team', 'population_opp'
     ]
     
+    #tambah rank columns hanya jika ada di data
+    if 'rank_team' in train_df.columns:
+        kolom_wajib.extend(['rank_team', 'rank_opponent'])
+    
     sisa_nan_train = train_df[kolom_wajib].isna().sum().sum()
-    sisa_nan_test = test_df[kolom_wajib].isna().sum().sum()
+    sisa_nan_test = test_df[[c for c in kolom_wajib if c in test_df.columns]].isna().sum().sum()
     
     assert sisa_nan_train == 0, f"Gagal: masih ada {sisa_nan_train} NaN di train set."
     assert sisa_nan_test == 0, f"Gagal: masih ada {sisa_nan_test} NaN di test set."
@@ -170,7 +186,17 @@ def verifikasi_fase_1(train_df, test_df):
     assert len(non_ascii) == 0, f"Gagal: ditemukan {len(non_ascii)} entitas non-ASCII: {non_ascii}"
     print("[PASS] Encoding nama tim 100% clean.")
     
-    #4. deteksi outlier ekstrem (perlu dicatat untuk pemodelan)
+    #4. cek flag kolom baru
+    if 'rank_available_team' in train_df.columns:
+        assert 'rank_available_team' in train_df.columns, "Gagal: rank_available_team tidak ada"
+        assert 'rank_available_opp' in train_df.columns, "Gagal: rank_available_opp tidak ada"
+        print("[PASS] Flag kolom rank_available_* ada.")
+    
+    if 'gender_encoded' in train_df.columns:
+        assert 'gender_encoded' in train_df.columns, "Gagal: gender_encoded tidak ada"
+        print("[PASS] Flag kolom gender_encoded ada.")
+    
+    #5. deteksi outlier ekstrem (perlu dicatat untuk pemodelan)
     max_gol_train = train_df[['team_goals', 'opp_goals']].max().max()
     print(f"[INFO] Outlier gol maksimal di train: {max_gol_train}")
     if max_gol_train > 10:
