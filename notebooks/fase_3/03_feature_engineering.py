@@ -4,9 +4,9 @@ import pickle
 from collections import defaultdict
 from tqdm import tqdm
 
+#define value default buat self.elo
 def default_elo():
     return 1500.0
-
 class TeamStateUpdater:
     def __init__(self):
         #inisialisasi memory stat historis
@@ -145,6 +145,39 @@ train_engineered['is_high_stakes'] = train_engineered['tournament'].str.contains
 train_engineered['target_win'] = (train_engineered['team_goals'] > train_engineered['opp_goals']).astype(int)
 train_engineered['target_draw'] = (train_engineered['team_goals'] == train_engineered['opp_goals']).astype(int)
 train_engineered['target_lose'] = (train_engineered['team_goals'] < train_engineered['opp_goals']).astype(int)
+
+#3.6 pembersihan h2h features
+print("\ncleaning h2h features...")
+#fillna dengan 0 (semantik: tidak ada riwayat = 0, bukan median)
+train_engineered['h2h_gd_last5'] = train_engineered['h2h_gd_last5'].fillna(0)
+train_engineered['h2h_points_last5'] = train_engineered['h2h_points_last5'].fillna(0)
+#flag: apakah ada riwayat H2H?
+train_engineered['has_h2h_history'] = (
+    train_engineered['h2h_gd_last5'].abs() > 0
+).astype(int)
+print("  h2h_gd_last5 fillna(0) OK")
+print("  h2h_points_last5 fillna(0) OK")
+print("  has_h2h_history flag added OK")
+
+#3.7 drop dan rename kolom duplikat
+print("\nfixing duplicate columns...")
+cols_to_drop = [
+    'elo_team',
+    'elo_opponent',
+    'days_since_last_match_team',
+    'days_since_last_match_opp',
+]
+train_engineered = train_engineered.drop(columns=cols_to_drop, errors='ignore')
+
+rename_map = {
+    'elo_team.1': 'elo_team_final',
+    'elo_opp': 'elo_opponent_final',
+    'days_since_last_match_team.1': 'rest_days_team',
+    'days_since_last_match_opp.1': 'rest_days_opp',
+}
+train_engineered = train_engineered.rename(columns=rename_map)
+print(f"  dropped {len(cols_to_drop)} old columns")
+print(f"  renamed {len(rename_map)} columns to final versions")
 
 #penghapusan kolom redundan dan ekspor
 train_engineered.to_csv('./data/processed/train_engineered.csv', index=False)
