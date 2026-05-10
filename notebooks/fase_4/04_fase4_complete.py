@@ -34,7 +34,7 @@ RAW_TEST_CANDIDATES = [
 ]
 
 def separator(title=""):
-    print(f"\n{'=' * 60}")
+    print(f"{'=' * 60}")
     if title:
         pad = (58 - len(title)) // 2
         print(f"{'=' * pad} {title} {'=' * pad}")
@@ -44,31 +44,27 @@ def elapsed():
     secs = (datetime.now() - START_TIME).seconds
     return f"{secs // 60}m {secs % 60}s"
 
-# ═════════════════════════════════════════════════════════════════════════
-separator("FASE 4 — BASELINE COMPUTATION")
+print("FASE 4 — BASELINE COMPUTATION")
 print(f"  mulai    : {START_TIME.strftime('%H:%M:%S')}")
-print(f"  tujuan   : establish baseline AW-MAE metric untuk reference phase 5 models")
-print(f"  strategi : evaluate 4 simple baseline strategies untuk set success criterion")
+print("  tujuan   : establish baseline AW-MAE metric untuk reference phase 5 models")
+print("  strategi : evaluate 4 simple baseline strategies untuk set success criterion")
 
 #step 4A: load engineered training data dan perform basic data validation
 #tahap ini memastikan semua required columns ada, missing values ditangani dengan proper semantic
 #kami menggunakan fillna(0) untuk h2h karena semantik tidak ada riwayat = 0, bukan median
-separator("STEP 4A — Load & Basic Cleanup")
-print(f"  [{elapsed()}] Mulai ...")
-
-print("\n  [4A-1] Loading train_engineered.csv ...")
+print("load train_engineered.csv ...")
 train = pd.read_csv('data/processed/train_engineered.csv')
-print(f"          Shape: {train.shape[0]:,} x {train.shape[1]} columns")
+print(f"shape: {train.shape[0]:,} x {train.shape[1]} columns")
 
 #validasi: pastikan kolom yang dibutuhkan untuk AW-MAE metric ada di dataframe
 #kami butuh team_goals dan opp_goals (target), tournament_weight (untuk weighting)
 required_cols = ['team_goals', 'opp_goals', 'tournament_weight', 'team', 'opponent']
 missing = [c for c in required_cols if c not in train.columns]
 if missing:
-    raise ValueError(f"Missing required columns: {missing}")
-print(f"          OK - semua kolom required ada")
+    raise ValueError(f"missing kolom required: {missing}")
+print("semua kolom required ada")
 
-print("\n  [4A-2] fillna H2H features ...")
+#validasi: pastikan semua kolom numerik ada di dataframe
 h2h_cols = ['h2h_gd_last5', 'h2h_points_last5']
 for col in h2h_cols:
     if col in train.columns:
@@ -76,7 +72,7 @@ for col in h2h_cols:
         train[col] = train[col].fillna(0)
         print(f"          {col}: {n:,} null → 0")
 
-print("\n  [4A-3] fillna rank features with median ...")
+#validasi: pastikan semua kolom rank ada di dataframe
 rank_cols = ['rank_team', 'rank_opponent']
 for col in rank_cols:
     if col in train.columns:
@@ -85,46 +81,40 @@ for col in rank_cols:
         train[col] = train[col].fillna(med)
         print(f"          {col}: {n:,} null → {med:.0f}")
 
-print("\n  [4A-4] fillna tournament_weight (if missing) ...")
+#validasi: pastikan tournament_weight ada di dataframe
 if 'tournament_weight' in train.columns and train['tournament_weight'].isna().sum() > 0:
     train['tournament_weight'] = train['tournament_weight'].fillna(1.2)
     print(f"          tournament_weight: filled with 1.2 (default)")
-
-print(f"\n  ✅ STEP 4A SELESAI [{elapsed()}] — Data ready for baseline computation")
 
 #step 4B: validasi AW-MAE metric logic, lalu compute multiple baseline strategies
 #sanity check memastikan metrik berfungsi sebagaimana didesain
 #baseline strategies yang kami test: flat 1-1, flat 1-0, global mean, per-team mean
 #score terbaik menjadi threshold: phase 5 model harus beat baseline ini
-separator("STEP 4B — Sanity Check + Multiple Baselines")
-print(f"  [{elapsed()}] Mulai ...")
-
 y_true = train[['team_goals', 'opp_goals']].values
 w = np.asarray(train['tournament_weight'].values, dtype=float)
 
-print(f"\\n  struktur data yang akan kami gunakan:")
+print("  struktur data yang akan kami gunakan:")
 print(f"    y_true: {y_true.shape} (actual match scores dari training)")
 print(f"    weights: {w.shape} (tournament importance untuk weighted loss)")
 print(f"    weight range: [{w.min():.2f}, {w.max():.2f}] (dari 0.96 friendly hingga 2.00 world cup)")
 
-print(f"\\n  [4B-1] validasi AW-MAE metric (sanity checks) ...")
+
 y_perfect = y_true.copy().astype(float)
 awmae_perfect = kalkulasi_aw_mae(y_true, y_perfect, w)
 assert awmae_perfect < 1e-6, f"BUG: Perfect pred should be ~0, got {awmae_perfect}"
-print(f"          OK - perfect prediction (prediksi tepat 100%) → {awmae_perfect:.6f} (near zero)")
+print(f"OK - perfect prediction (prediksi tepat 100%) → {awmae_perfect:.6f} (near zero)")
 
 y_worst = np.zeros_like(y_true, dtype=float)
 y_worst[:, 0] = 10
 awmae_worst = kalkulasi_aw_mae(y_true, y_worst, w)
 assert awmae_worst > 5.0, f"BUG: Worst pred should be > 5, got {awmae_worst}"
-print(f"          OK - worst prediction (selalu prediksi 10-0) → {awmae_worst:.4f} (sangat tinggi)")
+print(f"OK - worst prediction (selalu prediksi 10-0) → {awmae_worst:.4f} (sangat tinggi)")
 
 y_c = y_true[:100].copy().astype(float) + 1.0
 y_f = y_true[:100].copy().astype(float) + 10.0
 assert kalkulasi_aw_mae(y_true[:100], y_c, w[:100]) < kalkulasi_aw_mae(y_true[:100], y_f, w[:100])
-print(f"          OK - metric monotonicity verified (prediksi lebih dekat = score lebih rendah)")
+print("OK - metric monotonicity verified (prediksi lebih dekat = score lebih rendah)")
 
-print("\n  [4B-2] Hitung flat baselines ...")
 baselines = []
 global_mean_team = train['team_goals'].mean()
 global_mean_opp = train['opp_goals'].mean()
@@ -151,45 +141,40 @@ baselines.append({'model': 'flat_global_mean', 'awmae': round(awmae_global, 4),
                   'notes': f'rata-rata global: ({round(global_mean_team)}, {round(global_mean_opp)})'})
 print(f"          flat_global_mean                 → {awmae_global:.4f}")
 
-print("\n  [4B-3] Per-team mean baseline ...")
-team_avg_scored = train.groupby('team')['team_goals'].mean()
-team_avg_conceded = train.groupby('team')['opp_goals'].mean()
+# Calculate expanding historical mean shifted by 1 (strict past only)
+train['team_past_mean'] = train.groupby('team')['team_goals'].transform(lambda x: x.shift(1).expanding().mean())
+train['opp_past_mean'] = train.groupby('opponent')['opp_goals'].transform(lambda x: x.shift(1).expanding().mean())
 
-pred_team_avg = np.zeros((len(train), 2), dtype=float)
-pred_team_avg[:, 0] = train['team'].map(team_avg_scored).fillna(global_mean_team)
-pred_team_avg[:, 1] = train['opponent'].map(team_avg_conceded).fillna(global_mean_opp)
-pred_team_avg = np.round(pred_team_avg).clip(0)
+pred_team_avg = np.column_stack((
+    train['team_past_mean'].fillna(global_mean_team).round().to_numpy(dtype=float),
+    train['opp_past_mean'].fillna(global_mean_opp).round().to_numpy(dtype=float)
+))
 
-awmae_team_avg = kalkulasi_aw_mae(y_true, pred_team_avg.astype(float), w)
-baselines.append({'model': 'per_team_mean', 'awmae': round(awmae_team_avg, 4), 'notes': 'Team-specific average'})
-print(f"          per_team_mean                    → {awmae_team_avg:.4f}")
+awmae_team_avg = kalkulasi_aw_mae(y_true, pred_team_avg, w)
+baselines.append({'model': 'per_team_mean_proper', 'awmae': round(awmae_team_avg, 4), 
+                  'notes': 'Expanding mean (past only, no leakage)'})
+print(f"          per_team_mean_proper (time-aware) → {awmae_team_avg:.4f}")
 
 #simpan hasil baseline ke CSV untuk dokumentasi dan comparison dengan phase 5 model
 baseline_df = pd.DataFrame(baselines)
 baseline_df.to_csv('data/processed/baseline_scores_detailed.csv', index=False)
-print(f"\n  [4B-4] Saved baseline_scores_detailed.csv")
+print("baseline_scores_detailed.csv tersimpan")
 print(baseline_df.to_string(index=False))
 
 #identifikasi baseline terbaik (AW-MAE terendah) yang akan menjadi success criterion
 #phase 5 model harus mengalahkan baseline ini agar dianggap lebih baik dari strategy sederhana
 best_baseline = baseline_df.loc[baseline_df['awmae'].idxmin()]
-print(f"\\n  baseline terbaik: {best_baseline['model']} = {best_baseline['awmae']:.4f}")
+print(f"  baseline terbaik: {best_baseline['model']} = {best_baseline['awmae']:.4f}")
 print(f"  → phase 5 model HARUS score di bawah {best_baseline['awmae']:.4f} untuk lebih baik dari baseline")
-
-print(f"\n  ✅ STEP 4B SELESAI [{elapsed()}]")
 
 #ringkasan hasil phase 4: baseline metrics yang akan dipakai untuk evaluasi phase 5
 #metrik ini established sebagai benchmark untuk model development di fase berikutnya
-separator("PHASE 4 SUMMARY")
-print(f"\n  Training data: {len(train):,} matches")
-print(f"  Target variables: team_goals, opp_goals (count data, Poisson)")
-print(f"  Loss function: AW-MAE (weighted, discrete penalty)")
-print(f"\n  Baseline Results:")
-print(f"  ┌─────────────────────────────────────────────────────────┐")
+print("SUMMARY PHASE 4")
+print("variable target: team_goals, opp_goals (count data, Poisson)")
+print(f"training data: {len(train):,} matches")
+print("Loss function: AW-MAE (weighted, discrete penalty)")
+print("hasil:")
 for _, row in baseline_df.iterrows():
-    print(f"  │ {row['model']:<35} → {row['awmae']:>6.4f}         │")
-print(f"  └─────────────────────────────────────────────────────────┘")
-print(f"\\n  kriteria sukses untuk phase 5:")
+    print(f"{row['model']:<35} → {row['awmae']:>6.4f}")
+print("  kriteria sukses untuk phase 5:")
 print(f"  → LightGBM model AW-MAE harus < {best_baseline['awmae']:.4f} untuk lebih baik dari baseline")
-print(f"\\n  phase 4 selesai [{elapsed()}]")
-print(f"  → siap untuk phase 5: pengembangan dan training model machine learning")
