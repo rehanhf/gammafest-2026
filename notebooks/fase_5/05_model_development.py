@@ -17,7 +17,7 @@ except ModuleNotFoundError:
     from src.metrics import kalkulasi_aw_mae
     from src.optimizer import optimizer
 
-os.makedirs('../models', exist_ok=True)
+os.makedirs('./model', exist_ok=True)
 
 # 1. Load Data Fase 3
 train_df = pd.read_csv('./data/processed/train_engineered.csv')
@@ -116,9 +116,9 @@ for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
     cv_scores.append(fold_score)
     
     # Ekspor Model
-    with open(f'../models/lgbm_team_fold{fold}.pkl', 'wb') as f:
+    with open(f'./model/lgbm_team_fold{fold}.pkl', 'wb') as f:
         pickle.dump(model_t, f)
-    with open(f'../models/lgbm_opp_fold{fold}.pkl', 'wb') as f:
+    with open(f'./model/lgbm_opp_fold{fold}.pkl', 'wb') as f:
         pickle.dump(model_o, f)
 
 # 5. Evaluasi OOF
