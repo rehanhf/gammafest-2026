@@ -179,6 +179,23 @@ train_engineered = train_engineered.rename(columns=rename_map)
 print(f"  dropped {len(cols_to_drop)} old columns")
 print(f"  renamed {len(rename_map)} columns to final versions")
 
+#3.8 categorical encoding absolut
+#konversi gender ke biner
+train_engineered['gender_encode'] = train_engineered['gender'].map({'M': 1, 'W': 0}).fillna(1)
+
+#konversi confederation ke ordinal numeric
+semua_conf = pd.concat([train_engineered['confederation_team'], train_engineered['confederation_opp']]).dropna().unique()
+conf_map = {k: i for i, k in enumerate(semua_conf)}
+
+train_engineered['conf_team_encode'] = train_engineered['confederation_team'].map(conf_map).fillna(-1)
+train_engineered['conf_opp_encode'] = train_engineered['confederation_opp'].map(conf_map).fillna(-1)
+
+#pemusnahan kolom teks mentah
+kolom_sampah =['gender', 'confederation_team', 'confederation_opp', 'venue_country']
+train_engineered = train_engineered.drop(columns=kolom_sampah, errors='ignore')
+
+#ekspor akhir
+train_engineered.to_csv('./data/processed/train_engineered.csv', index=False)
 #penghapusan kolom redundan dan ekspor
 train_engineered.to_csv('./data/processed/train_engineered.csv', index=False)
 with open('./data/processed/state_tracker.pkl', 'wb') as f:

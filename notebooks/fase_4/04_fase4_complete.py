@@ -70,7 +70,7 @@ for col in h2h_cols:
     if col in train.columns:
         n = train[col].isna().sum()
         train[col] = train[col].fillna(0)
-        print(f"          {col}: {n:,} null → 0")
+        print(f"{col}: {n:,} null → 0")
 
 #validasi: pastikan semua kolom rank ada di dataframe
 rank_cols = ['rank_team', 'rank_opponent']
@@ -79,12 +79,12 @@ for col in rank_cols:
         n = train[col].isna().sum()
         med = train[col].median()
         train[col] = train[col].fillna(med)
-        print(f"          {col}: {n:,} null → {med:.0f}")
+        print(f"{col}: {n:,} null → {med:.0f}")
 
 #validasi: pastikan tournament_weight ada di dataframe
 if 'tournament_weight' in train.columns and train['tournament_weight'].isna().sum() > 0:
     train['tournament_weight'] = train['tournament_weight'].fillna(1.2)
-    print(f"          tournament_weight: filled with 1.2 (default)")
+    print(f"tournament_weight: filled with 1.2 (default)")
 
 #step 4B: validasi AW-MAE metric logic, lalu compute multiple baseline strategies
 #sanity check memastikan metrik berfungsi sebagaimana didesain
@@ -93,10 +93,10 @@ if 'tournament_weight' in train.columns and train['tournament_weight'].isna().su
 y_true = train[['team_goals', 'opp_goals']].values
 w = np.asarray(train['tournament_weight'].values, dtype=float)
 
-print("  struktur data yang akan kami gunakan:")
-print(f"    y_true: {y_true.shape} (actual match scores dari training)")
-print(f"    weights: {w.shape} (tournament importance untuk weighted loss)")
-print(f"    weight range: [{w.min():.2f}, {w.max():.2f}] (dari 0.96 friendly hingga 2.00 world cup)")
+print("struktur data yang akan kami gunakan:")
+print(f"y_true: {y_true.shape} (actual match scores dari training)")
+print(f"weights: {w.shape} (tournament importance untuk weighted loss)")
+print(f"weight range: [{w.min():.2f}, {w.max():.2f}] (dari 0.96 friendly hingga 2.00 world cup)")
 
 
 y_perfect = y_true.copy().astype(float)
@@ -124,14 +124,14 @@ global_mean_opp = train['opp_goals'].mean()
 pred_1_1 = np.ones((len(train), 2), dtype=float)
 awmae_1_1 = kalkulasi_aw_mae(y_true, pred_1_1, w)
 baselines.append({'model': 'flat_always_1_1', 'awmae': round(awmae_1_1, 4), 'notes': 'skor paling umum'})
-print(f"          flat_always_1_1                  → {awmae_1_1:.4f}")
+print(f"flat_always_1_1 → {awmae_1_1:.4f}")
 
 #baseline 2: prediksi flat score 1-0 untuk semua match
 #1-0 reflect home team advantage hypothesis (tim kandang menang 1-0)
 pred_1_0 = np.column_stack([np.ones(len(train)), np.zeros(len(train))]).astype(float)
 awmae_1_0 = kalkulasi_aw_mae(y_true, pred_1_0, w)
 baselines.append({'model': 'flat_always_1_0', 'awmae': round(awmae_1_0, 4), 'notes': 'hipotesis home advantage'})
-print(f"          flat_always_1_0                  → {awmae_1_0:.4f}")
+print(f"flat_always_1_0 → {awmae_1_0:.4f}")
 
 #baseline 3: prediksi rata-rata gol global dari seluruh dataset
 #strategi ini menggunakan informasi agregat tanpa mempertimbangkan karakteristik tim individual
@@ -139,7 +139,7 @@ pred_global = np.full((len(train), 2), [round(global_mean_team), round(global_me
 awmae_global = kalkulasi_aw_mae(y_true, pred_global, w)
 baselines.append({'model': 'flat_global_mean', 'awmae': round(awmae_global, 4), 
                   'notes': f'rata-rata global: ({round(global_mean_team)}, {round(global_mean_opp)})'})
-print(f"          flat_global_mean                 → {awmae_global:.4f}")
+print(f"flat_global_mean → {awmae_global:.4f}")
 
 # Calculate expanding historical mean shifted by 1 (strict past only)
 train['team_past_mean'] = train.groupby('team')['team_goals'].transform(lambda x: x.shift(1).expanding().mean())
@@ -153,7 +153,7 @@ pred_team_avg = np.column_stack((
 awmae_team_avg = kalkulasi_aw_mae(y_true, pred_team_avg, w)
 baselines.append({'model': 'per_team_mean_proper', 'awmae': round(awmae_team_avg, 4), 
                   'notes': 'Expanding mean (past only, no leakage)'})
-print(f"          per_team_mean_proper (time-aware) → {awmae_team_avg:.4f}")
+print(f"per_team_mean_proper (time-aware) → {awmae_team_avg:.4f}")
 
 #simpan hasil baseline ke CSV untuk dokumentasi dan comparison dengan phase 5 model
 baseline_df = pd.DataFrame(baselines)
@@ -164,8 +164,8 @@ print(baseline_df.to_string(index=False))
 #identifikasi baseline terbaik (AW-MAE terendah) yang akan menjadi success criterion
 #phase 5 model harus mengalahkan baseline ini agar dianggap lebih baik dari strategy sederhana
 best_baseline = baseline_df.loc[baseline_df['awmae'].idxmin()]
-print(f"  baseline terbaik: {best_baseline['model']} = {best_baseline['awmae']:.4f}")
-print(f"  → phase 5 model HARUS score di bawah {best_baseline['awmae']:.4f} untuk lebih baik dari baseline")
+print(f"baseline terbaik: {best_baseline['model']} = {best_baseline['awmae']:.4f}")
+print(f"→ phase 5 model HARUS score di bawah {best_baseline['awmae']:.4f} untuk lebih baik dari baseline")
 
 #ringkasan hasil phase 4: baseline metrics yang akan dipakai untuk evaluasi phase 5
 #metrik ini established sebagai benchmark untuk model development di fase berikutnya
